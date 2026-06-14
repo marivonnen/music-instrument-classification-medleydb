@@ -29,7 +29,7 @@
 # Run this first. Works for both local Jupyter and Google Colab.
 # 
 
-# In[1]:
+# In[2]:
 
 
 # Install all required libraries
@@ -92,7 +92,7 @@ print('=' * 55)
 # Set `RUN_MODE` and `MEDLEYDB_PATH` for your situation.
 # 
 
-# In[2]:
+# In[3]:
 
 
 # ╔══════════════════════════════════════════════════════════╗
@@ -176,7 +176,7 @@ else:
 # Confirms Colab/Jupyter can see your files. If it fails, fix `MEDLEYDB_PATH` in Cell 2.
 # 
 
-# In[3]:
+# In[4]:
 
 
 def verify_medleydb(path):
@@ -234,7 +234,7 @@ verify_medleydb(MEDLEYDB_PATH)
 # Shows all instrument names in MedleyDB. **Run this to confirm the exact instrument names** before extracting features.
 # 
 
-# In[4]:
+# In[5]:
 
 
 def read_medleydb_metadata(medleydb_path):
@@ -946,109 +946,6 @@ for inst_a, inst_b, count in pairs[:10]:
 print("\nExtra metadata analysis finished ✓")
 
 
-# In[5]:
-
-
-# ============================================================
-# Generate a better piano spectrogram using the most active piano stem
-# ============================================================
-
-import os
-import numpy as np
-import librosa
-import librosa.display
-import matplotlib.pyplot as plt
-
-target_instrument = "piano"
-audio_path = os.path.join(MEDLEYDB_PATH, "Audio")
-
-best_path = None
-best_song = None
-best_rms = 0
-
-print("Searching for the most active piano stem...")
-
-for song_name, stems in metadata.items():
-    song_path = os.path.join(audio_path, song_name)
-
-    if not os.path.isdir(song_path):
-        continue
-
-    stems_path = os.path.join(song_path, "STEMS")
-    if not os.path.exists(stems_path):
-        stems_path = os.path.join(song_path, f"{song_name}_STEMS")
-
-    if not os.path.exists(stems_path):
-        continue
-
-    for stem_id, instrument in stems.items():
-        if instrument != target_instrument:
-            continue
-
-        stem_number = stem_id.replace("S", "")
-        wav_path = os.path.join(stems_path, f"{song_name}_STEM_{stem_number}.wav")
-
-        if not os.path.exists(wav_path):
-            continue
-
-        try:
-            y, sr = librosa.load(wav_path, sr=SR, mono=True, duration=5.0)
-            rms = float(np.sqrt(np.mean(y ** 2)))
-
-            if rms > best_rms:
-                best_rms = rms
-                best_path = wav_path
-                best_song = song_name
-
-        except Exception as e:
-            print(f"Could not read {wav_path}: {e}")
-
-print(f"Best piano stem found: {best_song}")
-print(f"RMS energy: {best_rms}")
-print(f"File: {os.path.basename(best_path) if best_path else 'None'}")
-
-if best_path is None:
-    print("No active piano stem found.")
-else:
-    y, sr = librosa.load(best_path, sr=SR, mono=True, duration=5.0)
-
-    mel = librosa.power_to_db(
-        librosa.feature.melspectrogram(
-            y=y,
-            sr=SR,
-            n_fft=N_FFT,
-            hop_length=HOP_LEN,
-            n_mels=64
-        ),
-        ref=np.max
-    )
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 3))
-
-    librosa.display.waveshow(y, sr=SR, ax=ax1)
-    ax1.set_title("piano, waveform")
-    ax1.set_xlabel("Time")
-
-    librosa.display.specshow(
-        mel,
-        sr=SR,
-        hop_length=HOP_LEN,
-        x_axis="time",
-        y_axis="mel",
-        ax=ax2
-    )
-    ax2.set_title("piano, mel spectrogram")
-    ax2.set_xlabel("Time")
-
-    plt.tight_layout()
-
-    save_file = os.path.join(SAVE_PATH, "spectrogram_piano_active.png")
-    plt.savefig(save_file, dpi=150, bbox_inches="tight")
-    plt.show()
-
-    print(f"Saved better piano spectrogram to: {save_file}")
-
-
 # In[6]:
 
 
@@ -1104,6 +1001,240 @@ else:
     plt.show()
 
     print(f"Saved active piano spectrogram to: {save_file}")
+
+
+# In[8]:
+
+
+# ============================================================
+# OPTIONAL FOR PRESENTATION ONLY: Create short audio demo files for presentation
+# ============================================================
+
+import os
+import numpy as np
+import librosa
+import soundfile as sf
+
+demo_instruments = [
+    "drum set",
+    "electric bass",
+    "clean electric guitar",
+    "piano"
+]
+
+audio_path = os.path.join(MEDLEYDB_PATH, "Audio")
+
+def find_most_active_stem(target_instrument):
+    best_path = None
+    best_song = None
+    best_rms = 0
+
+    for song_name, stems in metadata.items():
+        song_path = os.path.join(audio_path, song_name)
+
+        stems_path = os.path.join(song_path, "STEMS")
+        if not os.path.exists(stems_path):
+            stems_path = os.path.join(song_path, f"{song_name}_STEMS")
+
+        if not os.path.exists(stems_path):
+            continue
+
+        for stem_id, instrument in stems.items():
+            if instrument != target_instrument:
+                continue
+
+            stem_number = stem_id.replace("S", "")
+            wav_path = os.path.join(stems_path, f"{song_name}_STEM_{stem_number}.wav")
+
+            if not os.path.exists(wav_path):
+                continue
+
+            try:
+                y, sr = librosa.load(wav_path, sr=SR, mono=True, duration=5.0)
+                rms = float(np.sqrt(np.mean(y ** 2)))
+
+                if rms > best_rms:
+                    best_rms = rms
+                    best_path = wav_path
+                    best_song = song_name
+
+            except Exception:
+                continue
+
+    return best_path, best_song, best_rms
+
+
+for instrument in demo_instruments:
+    best_path, best_song, best_rms = find_most_active_stem(instrument)
+
+    if best_path is None:
+        print(f"No audio found for {instrument}")
+        continue
+
+    y, sr = librosa.load(best_path, sr=SR, mono=True, duration=5.0)
+
+    # Normalize volume safely
+    if np.max(np.abs(y)) > 0:
+        y = y / np.max(np.abs(y)) * 0.8
+
+    file_name = "demo_" + instrument.replace(" ", "_") + ".wav"
+    save_file = os.path.join(SAVE_PATH, file_name)
+
+    sf.write(save_file, y, SR)
+
+    print(f"Saved {instrument}: {file_name}")
+    print(f"Source song: {best_song}")
+    print(f"RMS energy: {best_rms}")
+    print()
+
+
+# In[6]:
+
+
+# ============================================================
+# Create mixed audio demo + isolated stem demos from the same song
+# Optional Audio Demo Generation for Presentation
+# ============================================================
+
+import os
+import numpy as np
+import librosa
+import soundfile as sf
+
+# Instruments we want to demonstrate from the same mixed song
+target_instruments = [
+    "drum set",
+    "electric bass",
+    "clean electric guitar"
+]
+
+audio_path = os.path.join(MEDLEYDB_PATH, "Audio")
+
+def normalize_audio(y):
+    """Normalize audio so the volume is clear but not too loud."""
+    if np.max(np.abs(y)) > 0:
+        return y / np.max(np.abs(y)) * 0.8
+    return y
+
+chosen_song = None
+chosen_stems = {}
+
+# Find one MedleyDB song that contains all target instruments
+for song_name, stems in metadata.items():
+    found = {}
+
+    for stem_id, instrument in stems.items():
+        if instrument in target_instruments:
+            found[instrument] = stem_id
+
+    if all(inst in found for inst in target_instruments):
+        chosen_song = song_name
+        chosen_stems = found
+        break
+
+if chosen_song is None:
+    raise RuntimeError("No song found with drum set, electric bass, and clean electric guitar together.")
+
+print("Chosen song:", chosen_song)
+print("Selected stems:", chosen_stems)
+
+song_path = os.path.join(audio_path, chosen_song)
+
+# Mixed audio file
+mix_path = os.path.join(song_path, f"{chosen_song}_MIX.wav")
+
+# Stems folder
+stems_path = os.path.join(song_path, "STEMS")
+if not os.path.exists(stems_path):
+    stems_path = os.path.join(song_path, f"{chosen_song}_STEMS")
+
+if not os.path.exists(mix_path):
+    raise RuntimeError("Mix file not found: " + mix_path)
+
+if not os.path.exists(stems_path):
+    raise RuntimeError("Stems folder not found: " + stems_path)
+
+# Find the best 5-second segment where the selected instruments are active
+scan_duration = 60
+segment_duration = 5
+hop_seconds = 1
+
+stem_audio_for_scan = {}
+
+for instrument, stem_id in chosen_stems.items():
+    stem_number = stem_id.replace("S", "")
+    stem_path = os.path.join(stems_path, f"{chosen_song}_STEM_{stem_number}.wav")
+
+    y, sr = librosa.load(stem_path, sr=SR, mono=True, duration=scan_duration)
+    stem_audio_for_scan[instrument] = y
+
+best_start = 0
+best_score = 0
+
+max_len = min(len(y) for y in stem_audio_for_scan.values())
+segment_samples = int(segment_duration * SR)
+hop_samples = int(hop_seconds * SR)
+
+for start in range(0, max_len - segment_samples, hop_samples):
+    score = 0
+
+    for instrument, y in stem_audio_for_scan.items():
+        segment = y[start:start + segment_samples]
+        rms = np.sqrt(np.mean(segment ** 2))
+        score += rms
+
+    if score > best_score:
+        best_score = score
+        best_start = start
+
+start_time = best_start / SR
+
+print()
+print("Best segment start time:", round(start_time, 2), "seconds")
+print("Activity score:", best_score)
+
+# Save mixed audio segment
+y_mix, sr = librosa.load(
+    mix_path,
+    sr=SR,
+    mono=True,
+    offset=start_time,
+    duration=segment_duration
+)
+
+mixed_save_path = os.path.join(SAVE_PATH, "demo_mixed_unclassified_audio.wav")
+sf.write(mixed_save_path, normalize_audio(y_mix), SR)
+
+print()
+print("Saved mixed audio:")
+print(mixed_save_path)
+
+# Save isolated stems from the same exact 5-second segment
+for instrument, stem_id in chosen_stems.items():
+    stem_number = stem_id.replace("S", "")
+    stem_path = os.path.join(stems_path, f"{chosen_song}_STEM_{stem_number}.wav")
+
+    y_stem, sr = librosa.load(
+        stem_path,
+        sr=SR,
+        mono=True,
+        offset=start_time,
+        duration=segment_duration
+    )
+
+    file_name = "demo_from_mix_" + instrument.replace(" ", "_") + ".wav"
+    save_path = os.path.join(SAVE_PATH, file_name)
+
+    sf.write(save_path, normalize_audio(y_stem), SR)
+
+    print("Saved isolated stem:", file_name)
+
+print()
+print("Done. Use these files in your presentation:")
+print("1. demo_mixed_unclassified_audio.wav")
+print("2. demo_from_mix_drum_set.wav")
+print("3. demo_from_mix_electric_bass.wav")
+print("4. demo_from_mix_clean_electric_guitar.wav")
 
 
 # In[ ]:
